@@ -263,6 +263,9 @@
   (let [[adds dels reps] (count-ops edits)]
     (->EditScript edits true (sizing edits) adds dels reps)))
 
+(defn edit-script? [x]
+  (instance? EditScript x))
+
 
 #?(:clj (defmethod print-method EditScript
           [x ^java.io.Writer writer]

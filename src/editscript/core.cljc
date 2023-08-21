@@ -113,6 +113,8 @@ operations"}
 obtained through calling `get-edits` on an EditScript"}
   edits->script e/edits->script)
 
+(def edit-script? e/edit-script?)
+
 
 ;; (diff (MapEntry/create 1 (MapEntry/create 2 (MapEntry/create 3 4)))
 ;;       (MapEntry/create 1 (MapEntry/create 2 (MapEntry/create 3 "ok"))))
