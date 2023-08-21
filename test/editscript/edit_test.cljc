@@ -14,6 +14,14 @@
             #?(:clj [clojure.test :refer [is are deftest ]]
                :cljs [cljs.test :refer [is are deftest] :include-macros true])))
 
+(deftest equality-test
+  (are [d1 d2] (= d1 d2)
+    (c/diff {} {})
+    (c/diff {} {})
+
+    (c/diff 1 2)
+    (c/diff 3 2)))
+
 (deftest edits-equality-test
   (are [d1 d2] (= (e/get-edits d1) (e/get-edits d2))
     (c/diff {} {})

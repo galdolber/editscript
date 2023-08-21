@@ -180,7 +180,21 @@
   (get-adds-num [_] adds-num)
   (get-dels-num [_] dels-num)
   (get-reps-num [_] reps-num)
-  (edit-distance [_] (+ adds-num dels-num reps-num)))
+  (edit-distance [_] (+ adds-num dels-num reps-num))
+
+  #?(:cljs IEquiv)
+  #?(:cljs
+     (-equiv [_ other]
+             (and (instance? EditScript other)
+                  (= edits (get-edits other)))))
+  #?(:cljs IHash)
+  #?(:cljs (-hash [_] (hash edits)))
+
+  Object
+  #?(:cljs (equiv [this other] (-equiv this other)))
+  #?(:clj (equals [_ other] (and (instance? EditScript other)
+                                 (= edits (get-edits other)))))
+  #?(:clj (hashCode [_] (hash edits))))
 
 (defn- valid-str-edits?
   [data level]
