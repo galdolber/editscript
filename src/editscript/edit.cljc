@@ -14,7 +14,6 @@
                    [java.util Map$Entry])))
 
 (defprotocol IEdit
-  (auto-sizing [this path value])
   (add-data [this path value])
   (delete-data [this path])
   (replace-data [this path value])
@@ -23,13 +22,7 @@
 (defprotocol IEditScript
   (combine [this that]
     "Concate that editscript onto this editscript, return the new editscript")
-  (get-size [this] "Report the size of the editscript")
-  (set-size [this size] "Set the size, return the script")
-  (edit-distance [this] "Report the edit distance, i.e number of operations")
-  (get-edits [this] "Report the edits as a vector")
-  (get-adds-num [this] "Report the number of additions")
-  (get-dels-num [this] "Report the number of deletions")
-  (get-reps-num [this] "Report the number of replacements"))
+  (get-edits [this] "Report the edits as a vector"))
 
 (defprotocol IType
   (get-type [this] "Return a type keyword, :val, :map, :lst, etc."))
@@ -113,74 +106,31 @@
      default
      (get-type [_] :val)))
 
-(defn- sizing*
-  [data size]
-  (let [up (fn [s] (inc ^long s))]
-    (if (#{:vec :lst :map :set} (get-type data))
-      (do (vswap! size up)
-          (doseq [child data]
-            (sizing* child size)))
-      (vswap! size up))))
-
-(defn- sizing
-  [data]
-  (let [size (volatile! 0) ]
-    (sizing* data size)
-    @size))
-
-(deftype ^:no-doc EditScript [^:unsynchronized-mutable ^PersistentVector edits
-                              ^boolean auto-sizing?
-                              ^:unsynchronized-mutable ^long size
-                              ^:unsynchronized-mutable ^long adds-num
-                              ^:unsynchronized-mutable ^long dels-num
-                              ^:unsynchronized-mutable ^long reps-num]
+(deftype ^:no-doc EditScript [^:unsynchronized-mutable ^PersistentVector edits]
 
   IEdit
-  (auto-sizing [this path value]
-    (when auto-sizing?
-      (set! size (long (+ 2 size (sizing path) (if value (sizing value) 0)))))
-    this)
   (add-data [this path value]
     (locking this
-      (set! adds-num (inc adds-num))
-      (set! edits (conj edits [path :+ value]))
-      (auto-sizing this path value)))
+      (set! edits (conj edits [path :+ value]))))
   (delete-data [this path]
     (locking this
-      (set! dels-num (inc dels-num))
-      (set! edits (conj edits [path :-]))
-      (auto-sizing this path nil)))
+      (set! edits (conj edits [path :-]))))
   (replace-data [this path value]
     (locking this
-      (set! reps-num (inc reps-num))
-      (set! edits (conj edits [path :r value]))
-      (auto-sizing this path value)))
+      (set! edits (conj edits [path :r value]))))
   (replace-str [this path ops level]
     (locking this
-      (set! reps-num (inc reps-num))
       (set! edits (conj edits [path
                                (case level
                                  :character :s
                                  :word      :sw
                                  :line      :sl)
-                               ops]))
-      (auto-sizing this path "")))
+                               ops]))))
 
   IEditScript
   (combine [_ that]
-    (EditScript. (into edits (get-edits that))
-                 auto-sizing?
-                 (+ size (get-size that))
-                 (+ adds-num (get-adds-num that))
-                 (+ dels-num (get-dels-num that))
-                 (+ reps-num (get-reps-num that))))
-  (get-size [_] size)
-  (set-size [this s] (set! size (long s)) this)
+    (EditScript. (into edits (get-edits that))))
   (get-edits [_] edits)
-  (get-adds-num [_] adds-num)
-  (get-dels-num [_] dels-num)
-  (get-reps-num [_] reps-num)
-  (edit-distance [_] (+ adds-num dels-num reps-num))
 
   #?(:cljs IEquiv)
   #?(:cljs
@@ -233,35 +183,12 @@
       (every? valid-edit? edits)
       true)))
 
-(defn- count-str-ops
-  [data adds dels reps]
-  (doseq [d     data
-          :when (vector? d)]
-    (case (nth d 0)
-      :+ (vswap! adds inc)
-      :- (vswap! dels inc)
-      :r (vswap! reps inc))))
-
-(defn- count-ops
-  [edits]
-  (let [adds (volatile! 0)
-        dels (volatile! 0)
-        reps (volatile! 0)]
-    (doseq [[_ op data] edits]
-      (case op
-        :+           (vswap! adds inc)
-        :-           (vswap! dels inc)
-        :r           (vswap! reps inc)
-        (:s :sw :sl) (count-str-ops data adds dels reps)))
-    [@adds @dels @reps]))
-
 (defn edits->script
   "Create an EditScript instance from a vector of edits, like those obtained
   through calling `get-edits` on an EditScript"
   [edits]
   (assert (valid-edits? edits) "Not a vector of valid edits")
-  (let [[adds dels reps] (count-ops edits)]
-    (->EditScript edits true (sizing edits) adds dels reps)))
+  (->EditScript edits))
 
 (defn edit-script? [x]
   (instance? EditScript x))
@@ -272,5 +199,5 @@
           (print-method (get-edits x) writer))
    :cljs (extend-protocol IPrintWithWriter
            EditScript
-           (-pr-writer [o writer opts]
+           (-pr-writer [o writer _]
              (write-all writer (str (get-edits o))))))

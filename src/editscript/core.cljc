@@ -11,11 +11,10 @@
 (ns editscript.core
   (:require [editscript.edit :as e]
             [editscript.patch :as p]
-            [editscript.util.common :as c]
             [editscript.diff.quick :as q]
-            [editscript.diff.a-star :as a])
-  #?(:clj (:import [editscript.edit EditScript]
-                   [clojure.lang MapEntry])))
+            [editscript.diff.a-star :as a]))
+
+(def EMPTY-DIFF (e/edits->script []))
 
 (defn diff
   "Create an editscript to represent the transformations needed to turn a
@@ -58,20 +57,25 @@
   ([a b {:keys [algo]
          :or   {algo :a-star}
          :as   opts}]
-   (if (= algo :a-star)
-     (a/diff a b opts)
-     (q/diff a b opts))))
+   (if (= a b)
+     EMPTY-DIFF
+     (if (and (nil? a) (not (nil? b)))
+       (e/edits->script [[[] :r b]])
+       (if (and (nil? b) (not (nil? a)))
+         (e/edits->script [[[] :r nil]])
+         (if (= algo :a-star)
+           (a/diff a b opts)
+           (q/diff a b opts)))))))
 
 (defn patch
   "Apply the editscript `script` on `a` to produce `b`, assuming the
   script is the results of running  `(diff a b)`, such that
   `(= b (patch a (diff a b)))` is true"
   [a script]
-  {:pre [(instance? editscript.edit.EditScript script)]}
   (reduce
-    #(p/patch* %1 %2)
-    a
-    (e/get-edits script)))
+   #(p/patch* %1 %2)
+   a
+   (e/get-edits script)))
 
 (def ^{:arglists '([edits])
        :doc      "Check if the given vector represents valid edits that can be turned
@@ -84,29 +88,8 @@ editscript"}
   combine e/combine)
 
 (def ^{:arglists '([es])
-       :doc      "Report the size of the editscript"}
-  get-size e/get-size)
-
-(def ^{:arglists '([es])
-       :doc      "Report the edit distance of the editscript, i.e. number of
-operations"}
-  edit-distance e/edit-distance)
-
-(def ^{:arglists '([es])
        :doc      "Report the edits of the editscript as a vector"}
   get-edits e/get-edits)
-
-(def ^{:arglists '([es])
-       :doc      "Report the number of additions in the editscript"}
-  get-adds-num e/get-adds-num)
-
-(def ^{:arglists '([es])
-       :doc      "Report the number of deletes in the editscript"}
-  get-dels-num e/get-dels-num)
-
-(def ^{:arglists '([es])
-       :doc      "Report the edits of replacements in the editscript"}
-  get-reps-num e/get-reps-num)
 
 (def ^{:arglists '([edits])
        :doc      "Create an EditScript instance from a vector of edits, like those
@@ -114,7 +97,3 @@ obtained through calling `get-edits` on an EditScript"}
   edits->script e/edits->script)
 
 (def edit-script? e/edit-script?)
-
-
-;; (diff (MapEntry/create 1 (MapEntry/create 2 (MapEntry/create 3 4)))
-;;       (MapEntry/create 1 (MapEntry/create 2 (MapEntry/create 3 "ok"))))

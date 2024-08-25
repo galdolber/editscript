@@ -11,7 +11,7 @@
 (ns editscript.edit-test
   (:require [editscript.edit :as e]
             [editscript.core :as c]
-            #?(:clj [clojure.test :refer [is are deftest ]]
+            #?(:clj [clojure.test :refer [is are deftest]]
                :cljs [cljs.test :refer [is are deftest] :include-macros true])))
 
 (deftest equality-test
@@ -53,11 +53,6 @@
     [[[1] :r]]
     [[[1] :s [1 [:- "ab"] [:+ "cd"]]]]
     [[[1] :s [[:r 10] 2]]]))
-
-(deftest sizing-test
-  (are [diff size] (= size (e/get-size diff))
-    (e/edits->script [])  1
-    (c/diff [:a :b] [:a]) 5))
 
 (deftest edits->script-test
   (are [a b edits] (= b (c/patch a (e/edits->script edits)))

@@ -10,8 +10,7 @@
 
 (ns editscript.core-test
   (:require [clojure.test :refer [is are testing deftest]]
-            [editscript.core :refer [patch diff get-edits edits->script
-                                     edit-distance get-size]]
+            [editscript.core :refer [patch diff get-edits edits->script]]
             [editscript.edit :as e]
             ;; [editscript.diff.quick :as q]
             ;; [editscript.diff.a-star :as a]
@@ -41,10 +40,6 @@
             [[2] :r 23]
             [[3 :a 0] :-]
             [[6 3] :+ 3]]))
-    (is (= 4 (edit-distance d)))
-    (is (= 23 (get-size d)))
-    (is (= 4 (edit-distance d-q)))
-    (is (= 23 (get-size d-q)))
     (is (= b (patch a d)))
     (is (= b (patch a d-q)))
     (is (= b (patch a ds))))
@@ -52,11 +47,7 @@
         b   [{:a 5} {:b 5}]
         d   (diff a b)
         d-q (diff a b {:algo :quick})]
-    (is (= 1 (edit-distance d)))
-    (is (= 9 (get-size d)))
     (is (= (get-edits d) [[[] :r [{:a 5} {:b 5}]]]))
-    (is (= 7 (edit-distance d-q)))
-    (is (= 35 (get-size d-q)))
     (is (= (get-edits d-q) [[[0] :-]
                             [[0] :-]
                             [[0] :-]
@@ -161,12 +152,8 @@
         d-q (diff a b {:vec-timeout 1 :algo :quick})
         ]
     (is (= b (patch a d)))
-    (is (= (e/edit-distance d) 575))
     (is (= b (patch a d-o)))
-    (is (= (e/edit-distance d-o) 1))
-    (is (= b (patch a d-q)))
-    (is (= (e/edit-distance d-q) 1))
-    ))
+    (is (= b (patch a d-q)))))
 
 ;; generative tests
 
@@ -235,13 +222,9 @@
           diff13 (diff data1 data3)
           diff14 (diff data1 data4)]
       (is (= data2 (patch data1 diff12)))
-      (is (= 1 (e/edit-distance diff12)))
-      (is (= 7 (e/get-size diff12)))
       (is (= (e/get-edits diff12)
              [[[2 :fill] :r "#0000ff"]]))
       (is (= data3 (patch data1 diff13)))
-      (is (= 5 (e/edit-distance diff13)))
-      (is (= 31 (e/get-size diff13)))
       (is (= (e/get-edits diff13)
              [[[2 :rx] :r 69.5]
               [[2 :fill] :r "#0000ff"]
@@ -249,8 +232,6 @@
               [[2 :cy] :r 228]
               [[2 :ry] :r 57]]))
       (is (= data4 (patch data1 diff14)))
-      (is (= 13 (e/edit-distance diff14)))
-      (is (= 73 (e/get-size diff14)))
       (is (= (e/get-edits diff14)
              [[[0 :y] :r 13]
               [[0 :width] :r 262]
@@ -311,10 +292,6 @@
   ;; Execution time upper quantile : 1.097140 ms (97.5%)
   ;; Overhead used : 14.553786 ns
 
-  (e/edit-distance (diff data1 data4))
-  ;; ==> 13
-  (e/get-size (diff data1 data4))
-  ;; ==> 73
   (diff data1 data4)
   ;; ==>
   ;; [[[0 :y] :r 13] [[0 :width] :r 262] [[0 :x] :r 19] [[0 :height] :r 101] [[1 :y] :r 122] [[1 :x] :r 12] [[1 :height] :r 25.19999999999999] [[2] :-] [[2] :-] [[2 :y] :r 208] [[2 :x] :r 12] [[2 :height] :r 25.19999999999999] [[3] :-]]
@@ -347,10 +324,6 @@
   ;; Execution time lower quantile : 124.835175 µs ( 2.5%)
   ;; Execution time upper quantile : 150.795063 µs (97.5%)
   ;; Overhead used : 9.966537 ns
-  (e/edit-distance (diff data1 data4 {:algo :quick}))
-  ;; ==> 36
-  (e/get-size (diff data1 data4))
-  ;; ==> 217
   (diff data1 data4)
   ;; [[[0] :-] [[0] :-] [[0] :-] [[0 :y1] :-] [[0 :type] :r "rect"] [[0 :borderWidth] :r 1] [[0 :label] :-] [[0 :x1] :-] [[0 :y2] :-] [[0 :x2] :-] [[0 :y] :+ 13] [[0 :r] :+ 0] [[0 :width] :+ 262] [[0 :x] :+ 19] [[0 :height] :+ 101] [[1 :y] :r 122] [[1 :color] :r "#0000FF"] [[1 :fill] :r {:r 256, :g 0, :b 0, :a 0.5}] [[1 :width] :r 10] [[1 :type] :r "textBlock"] [[1 :size] :r "24px"] [[1 :weight] :r "bold"] [[1 :x] :r 12] [[1 :height] :r 25.19999999999999] [[1 :text] :r "DojoX Drawing Rocks"] [[2 :points] :-] [[2 :type] :r "text"] [[2 :y] :+ 208] [[2 :family] :+ "sans-serif"] [[2 :width] :+ 200] [[2 :size] :+ "18px"] [[2 :pad] :+ 3] [[2 :weight] :+ "normal"] [[2 :x] :+ 12] [[2 :height] :+ 25.19999999999999] [[2 :text] :+ "This is just text"]]
 
