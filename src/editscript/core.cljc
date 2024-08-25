@@ -11,10 +11,7 @@
 (ns editscript.core
   (:require [editscript.edit :as e]
             [editscript.patch :as p]
-            [editscript.diff.quick :as q]
             [editscript.diff.a-star :as a]))
-
-(def EMPTY-DIFF (e/edits->script []))
 
 (defn diff
   "Create an editscript to represent the transformations needed to turn a
@@ -54,46 +51,23 @@
   timed-out, a replacement operation will be used."
   ([a b]
    (diff a b nil))
-  ([a b {:keys [algo]
-         :or   {algo :a-star}
-         :as   opts}]
+  ([a b opts]
    (if (= a b)
-     EMPTY-DIFF
+     []
      (if (and (nil? a) (not (nil? b)))
-       (e/edits->script [[[] :r b]])
+       [[[] :r b]]
        (if (and (nil? b) (not (nil? a)))
-         (e/edits->script [[[] :r nil]])
-         (if (= algo :a-star)
-           (a/diff a b opts)
-           (q/diff a b opts)))))))
+         [[[] :r nil]]
+         (a/diff a b opts))))))
 
 (defn patch
   "Apply the editscript `script` on `a` to produce `b`, assuming the
   script is the results of running  `(diff a b)`, such that
   `(= b (patch a (diff a b)))` is true"
   [a script]
-  (reduce
-   #(p/patch* %1 %2)
-   a
-   (e/get-edits script)))
+  (reduce #(p/patch* %1 %2) a script))
 
 (def ^{:arglists '([edits])
        :doc      "Check if the given vector represents valid edits that can be turned
 into an EditScript"}
   valid-edits? e/valid-edits?)
-
-(def ^{:arglists '([this that])
-       :doc      "Concate that editscript onto this editscript, return the new
-editscript"}
-  combine e/combine)
-
-(def ^{:arglists '([es])
-       :doc      "Report the edits of the editscript as a vector"}
-  get-edits e/get-edits)
-
-(def ^{:arglists '([edits])
-       :doc      "Create an EditScript instance from a vector of edits, like those
-obtained through calling `get-edits` on an EditScript"}
-  edits->script e/edits->script)
-
-(def edit-script? e/edit-script?)

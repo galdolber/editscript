@@ -23,7 +23,7 @@
     (c/diff 3 2)))
 
 (deftest edits-equality-test
-  (are [d1 d2] (= (e/get-edits d1) (e/get-edits d2))
+  (are [d1 d2] (= d1 d2)
     (c/diff {} {})
     (c/diff {} {})
 
@@ -55,7 +55,7 @@
     [[[1] :s [[:r 10] 2]]]))
 
 (deftest edits->script-test
-  (are [a b edits] (= b (c/patch a (e/edits->script edits)))
+  (are [a b edits] (= b (c/patch a edits))
     ["abc" 24 22 {:a [1 2 3]} 1 3 #{1 2}]
     [24 23 {:a [2 3]} 1 3 #{1 2 3}]
     [[[0] :-]
@@ -74,8 +74,7 @@
         d-ab   (c/diff a b)
         d-bc   (c/diff b c)
         d-ac   (c/diff a c)
-        comb-d (e/combine d-ab d-bc)]
+        comb-d (into d-ab d-bc)]
     (is (= c (c/patch a comb-d)))
     (is (= c (c/patch a d-ac)))
-    (is (= c (c/patch a (e/edits->script
-                         (into (e/get-edits d-ab) (e/get-edits d-bc))))))))
+    (is (= c (c/patch a (into d-ab d-bc))))))

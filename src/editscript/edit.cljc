@@ -9,20 +9,9 @@
 ;;
 
 (ns ^:no-doc editscript.edit
-  #?(:clj (:import [clojure.lang PersistentVector IPersistentList IPersistentMap
+  #?(:clj (:import [clojure.lang IPersistentList IPersistentMap
                     IPersistentSet IPersistentVector MapEntry]
                    [java.util Map$Entry])))
-
-(defprotocol IEdit
-  (add-data [this path value])
-  (delete-data [this path])
-  (replace-data [this path value])
-  (replace-str [this path ops level]))
-
-(defprotocol IEditScript
-  (combine [this that]
-    "Concate that editscript onto this editscript, return the new editscript")
-  (get-edits [this] "Report the edits as a vector"))
 
 (defprotocol IType
   (get-type [this] "Return a type keyword, :val, :map, :lst, etc."))
@@ -106,45 +95,23 @@
      default
      (get-type [_] :val)))
 
-(deftype ^:no-doc EditScript [^:unsynchronized-mutable ^PersistentVector edits]
+(defn add-data [edits path value]
+  (conj! edits [path :+ value]))
 
-  IEdit
-  (add-data [this path value]
-    (locking this
-      (set! edits (conj edits [path :+ value]))))
-  (delete-data [this path]
-    (locking this
-      (set! edits (conj edits [path :-]))))
-  (replace-data [this path value]
-    (locking this
-      (set! edits (conj edits [path :r value]))))
-  (replace-str [this path ops level]
-    (locking this
-      (set! edits (conj edits [path
-                               (case level
-                                 :character :s
-                                 :word      :sw
-                                 :line      :sl)
-                               ops]))))
+(defn delete-data [edits path]
+  (conj! edits [path :-]))
 
-  IEditScript
-  (combine [_ that]
-    (EditScript. (into edits (get-edits that))))
-  (get-edits [_] edits)
+(defn replace-data [edits path value]
+  (conj! edits [path :r value]))
 
-  #?(:cljs IEquiv)
-  #?(:cljs
-     (-equiv [_ other]
-             (and (instance? EditScript other)
-                  (= edits (get-edits other)))))
-  #?(:cljs IHash)
-  #?(:cljs (-hash [_] (hash edits)))
+(defn replace-str [edits path ops level]
+  (conj! edits [path
+                (case level
+                  :character :s
+                  :word      :sw
+                  :line      :sl)
+                ops]))
 
-  Object
-  #?(:cljs (equiv [this other] (-equiv this other)))
-  #?(:clj (equals [_ other] (and (instance? EditScript other)
-                                 (= edits (get-edits other)))))
-  #?(:clj (hashCode [_] (hash edits))))
 
 (defn- valid-str-edits?
   [data level]
@@ -155,12 +122,12 @@
                           (= 2 (count x))
                           (let [[op y] x]
                             (and
-                              (#{:- :r :+} op)
-                              (case op
-                                :-      (nat-int? y)
-                                (:+ :r) (case level
-                                          :s        (string? y)
-                                          (:sl :sw) (vector? y))))))))
+                             (#{:- :r :+} op)
+                             (case op
+                               :-      (nat-int? y)
+                               (:+ :r) (case level
+                                         :s        (string? y)
+                                         (:sl :sw) (vector? y))))))))
                data)))
 
 (defn- valid-edit?
@@ -182,22 +149,3 @@
     (if (seq edits)
       (every? valid-edit? edits)
       true)))
-
-(defn edits->script
-  "Create an EditScript instance from a vector of edits, like those obtained
-  through calling `get-edits` on an EditScript"
-  [edits]
-  (assert (valid-edits? edits) "Not a vector of valid edits")
-  (->EditScript edits))
-
-(defn edit-script? [x]
-  (instance? EditScript x))
-
-
-#?(:clj (defmethod print-method EditScript
-          [x ^java.io.Writer writer]
-          (print-method (get-edits x) writer))
-   :cljs (extend-protocol IPrintWithWriter
-           EditScript
-           (-pr-writer [o writer _]
-             (write-all writer (str (get-edits o))))))

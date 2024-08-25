@@ -9,8 +9,8 @@
 ;;
 
 (ns editscript.core-test
-  (:require [clojure.test :refer [is are testing deftest]]
-            [editscript.core :refer [patch diff get-edits edits->script]]
+  (:require [clojure.test :refer [is testing deftest]]
+            [editscript.core :refer [patch diff]]
             [editscript.edit :as e]
             ;; [editscript.diff.quick :as q]
             ;; [editscript.diff.a-star :as a]
@@ -28,43 +28,29 @@
   (let [a   ["Hello word" 24 22 {:a [1 2 3]} 1 3 #{1 2}]
         b   ["Hello world" 24 23 {:a [2 3]} 1 3 #{1 2 3}]
         d   (diff a b)
-        d-q (diff a b {:algo :quick :str-diff :character})
-        v   (get-edits d)
-        ds  (edits->script v)]
-    (is (= (get-edits d) [[[0] :r "Hello world"]
-                          [[2] :r 23]
-                          [[3 :a 0] :-]
-                          [[6 3] :+ 3]]))
-    (is (= (get-edits d-q)
-           [[[0] :s [9 [:+ "l"] 1]]
-            [[2] :r 23]
-            [[3 :a 0] :-]
-            [[6 3] :+ 3]]))
+        v   d
+        ds  v]
+    (is (= d [[[0] :r "Hello world"]
+              [[2] :r 23]
+              [[3 :a 0] :-]
+              [[6 3] :+ 3]]))
     (is (= b (patch a d)))
-    (is (= b (patch a d-q)))
     (is (= b (patch a ds))))
   (let [a   [2 {:a 42} 3 {:b 4} {:c 29}]
         b   [{:a 5} {:b 5}]
-        d   (diff a b)
-        d-q (diff a b {:algo :quick})]
-    (is (= (get-edits d) [[[] :r [{:a 5} {:b 5}]]]))
-    (is (= (get-edits d-q) [[[0] :-]
-                            [[0] :-]
-                            [[0] :-]
-                            [[0 :b] :-]
-                            [[0 :a] :+ 5]
-                            [[1 :c] :-]
-                            [[1 :b] :+ 5]]))))
+        d   (diff a b)]
+    (is (= d [[[] :r [{:a 5} {:b 5}]]]))
+    (is (= b (patch a d)))))
 
 (deftest char-str-diff-test
   (let [a    {:data ["hello word" 24 22 {:a [1 2 3]} 1 3 #{1 2 3}]}
         b    {:data ["Hello world!" 42 22 {:a [1 3]} 1 3 #{1 2 3}]}
-        d-q  (diff a b {:algo :quick :str-diff :character})
-        d-a  (diff a b {:algo :a-star :str-diff :character})
-        e-q  (e/get-edits d-q)
-        e-a  (e/get-edits d-a)
-        d-q1 (e/edits->script e-q)
-        d-a1 (e/edits->script e-a)]
+        d-q  (diff a b {:str-diff :character})
+        d-a  (diff a b {:str-diff :character})
+        e-q  d-q
+        e-a  d-a
+        d-q1 e-q
+        d-a1 e-a]
     (is (e/valid-edits? e-q))
     (is (e/valid-edits? e-a))
     (is (= e-q
@@ -81,8 +67,8 @@
   (let [a  "You know, it does not matter how slowly you go as long as you do not stop."
         b  "Hey, do you know, it does not matter how fast you go as long as you don't stop."
         d  (diff a b {:str-diff :word :str-change-limit 0.5})
-        e  (e/get-edits d)
-        ds (e/edits->script e)]
+        e  d
+        ds e]
     (is (e/valid-edits? e))
     (is (= e [[[]
                :sw
@@ -127,8 +113,8 @@
         纵死侠骨香，不惭世上英。
         谁能书阁下，白首太玄经。"
         d  (diff a b {:str-diff :line :str-change-limit 0.5})
-        e  (e/get-edits d)
-        ds (e/edits->script e)]
+        e  d
+        ds e]
     (is (e/valid-edits? e))
     (is (= e [[[] :sl [1 [:- 1]
                        2 [:r ["        十步杀百人，千里不留行。"]] 9]]]))
@@ -138,22 +124,17 @@
 (deftest map-entry-test
   (let [a   (first {:a :c})
         b   (first {:a :b})
-        d-a (diff a b {:algo :a-star})
-        d-q (diff a b {:algo :quick})]
-    (is (= b (patch a d-a)))
-    (is (= b (patch a d-q)))))
+        d-a (diff a b {:algo :a-star})]
+    (is (= b (patch a d-a)))))
 
 (deftest vec-timeout-test
   (let [a   (vec (range 3000))
         b   (vec (concat (range 100) [213 222 223 224 123] (range 300 800)
                          [100 950 221 897 1232] (range 990 2810)))
         d   (diff a b)
-        d-o (diff a b {:vec-timeout 1})
-        d-q (diff a b {:vec-timeout 1 :algo :quick})
-        ]
+        d-o (diff a b {:vec-timeout 1})]
     (is (= b (patch a d)))
-    (is (= b (patch a d-o)))
-    (is (= b (patch a d-q)))))
+    (is (= b (patch a d-o)))))
 
 ;; generative tests
 
@@ -171,20 +152,19 @@
   2000
   (prop/for-all [a (gen/recursive-gen compound scalars)
                  b (gen/recursive-gen compound scalars)]
-                (let [s  (diff a b {:algo :quick})
-                      e  (e/get-edits s)
-                      s' (e/edits->script e)]
+                (let [s  (diff a b)
+                      e  s
+                      s' e]
                   (and (= b (patch a s))
                        (= b (patch a s'))))))
-
 
 (test/defspec a-star-end-2-end-generative-test
   2000
   (prop/for-all [a (gen/recursive-gen compound scalars)
                  b (gen/recursive-gen compound scalars)]
                 (let [s  (diff a b)
-                      e  (e/get-edits s)
-                      s' (e/edits->script e)]
+                      e  s
+                      s' e]
                   (and (= b (patch a s))
                        (= b (patch a s'))))))
 
@@ -193,13 +173,12 @@
   (prop/for-all [a (gen/recursive-gen compound scalars)
                  b (gen/recursive-gen compound scalars)
                  c (gen/recursive-gen compound scalars)]
-                (let [d-ab (diff a b {:algo :quick})
-                      d-bc (diff b c {:algo :quick})
-                      d-ac (diff a c {:algo :quick})]
+                (let [d-ab (diff a b)
+                      d-bc (diff b c)
+                      d-ac (diff a c)]
                   (and (= c (patch a d-ac))
-                       (= c (patch a (e/combine d-ab d-bc)))
-                       (= c (patch a (e/edits->script
-                                       (into (e/get-edits d-ab) (e/get-edits d-bc)))))))))
+                       (= c (patch a (into d-ab d-bc)))
+                       (= c (patch a (into d-ab d-bc)))))))
 
 ;; sample data tests
 
@@ -222,17 +201,17 @@
           diff13 (diff data1 data3)
           diff14 (diff data1 data4)]
       (is (= data2 (patch data1 diff12)))
-      (is (= (e/get-edits diff12)
+      (is (= diff12
              [[[2 :fill] :r "#0000ff"]]))
       (is (= data3 (patch data1 diff13)))
-      (is (= (e/get-edits diff13)
+      (is (= diff13
              [[[2 :rx] :r 69.5]
               [[2 :fill] :r "#0000ff"]
               [[2 :cx] :r 230.5]
               [[2 :cy] :r 228]
               [[2 :ry] :r 57]]))
       (is (= data4 (patch data1 diff14)))
-      (is (= (e/get-edits diff14)
+      (is (= diff14
              [[[0 :y] :r 13]
               [[0 :width] :r 262]
               [[0 :x] :r 19]

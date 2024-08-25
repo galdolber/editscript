@@ -175,7 +175,7 @@
      (-hash [_] (coord-hash a b))
 
      IEquiv
-     (-equiv [this that]
+     (-equiv [_ that]
        (and (= (get-order a) (get-order (.-a ^Coord that)))
             (= (get-order b) (get-order (.-b ^Coord that)))))
 
@@ -496,25 +496,27 @@
        (adjust-append trie op na nb path)))
 
 (defn- write-script
-  [steps roota script {:keys [str-diff]
-                       :or   {str-diff :none}
-                       :as   opts}]
-  (reduce
-    (fn [trie [op na nb]]
-      (let [path (convert-path trie op roota na nb (get-path na))
-            va   (get-value na)
-            vb   (get-value nb)]
-        (case op
-          :-      (e/delete-data script path)
-          :r      (if (and (= :str (e/get-type va) (e/get-type vb))
-                           (not= str-diff :none))
-                    (co/diff-str script path va vb opts)
-                    (e/replace-data script path vb))
-          (:a :i) (e/add-data script path vb)
-          nil)
-        trie))
-    (volatile! {:delta 0})
-    steps))
+  [steps roota {:keys [str-diff]
+                :or   {str-diff :none}
+                :as   opts}]
+  (persistent!
+   (first
+    (reduce
+     (fn [[script trie] [op na nb]]
+       (let [path (convert-path trie op roota na nb (get-path na))
+             va   (get-value na)
+             vb   (get-value nb)]
+         [(case op
+            :-      (e/delete-data script path)
+            :r      (if (and (= :str (e/get-type va) (e/get-type vb))
+                             (not= str-diff :none))
+                      (co/diff-str script path va vb opts)
+                      (e/replace-data script path vb))
+            (:a :i) (e/add-data script path vb)
+            script)
+          trie]))
+     [(transient []) (volatile! {:delta 0})]
+     steps))))
 
 (defn- trace*
   [came cur steps]
@@ -538,26 +540,19 @@
 (defn- trace
   ([came cur]
    @(trace* came cur (volatile! '())))
-  ([came ^Coord cur script opts]
+  ([came ^Coord cur opts]
    (-> (trace came cur)
-       (write-script (.-a cur) script opts))))
+       (write-script (.-a cur) opts))))
 
 (defn diff
   "Create an EditScript that represents the minimal difference between `b` and `a`"
   ([a b]
    (diff a b nil))
   ([a b opts]
-   (let [script (e/edits->script [])]
-     (when-not (= a b)
-       (let [roota (index a)
-             rootb (index b)
-             came  (volatile! {})
-             cost  (diff* roota rootb came opts)]
-         ;; #?(:clj (let [total          (* (get-size roota) (get-size rootb))
-         ;;               ^long explored (reduce + (map count (vals @came)))]
-         ;;           (printf "cost is %d, explored %d of %d - %.1f%%\n"
-         ;;                   cost explored total
-         ;;                   (* 100 (double (/ explored total))))))
-         (trace @came (->Coord roota rootb) script opts)
-         script))
-     script)))
+   (if (= a b)
+     []
+     (let [roota (index a)
+           rootb (index b)
+           came  (volatile! {})]
+       (diff* roota rootb came opts)
+       (trace @came (->Coord roota rootb) opts)))))
