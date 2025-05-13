@@ -118,7 +118,7 @@
       :set        (set-children order path data node)
       :lst        (list-children order path data node))
     (let [^long cs (->> (get-children node) vals (map get-size) (reduce +))
-          size     (+ (get-size node) cs)]
+          size     (+ ^long (get-size node) cs)]
       (doto node
         (set-order @order)
         (set-size size))
